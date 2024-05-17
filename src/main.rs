@@ -8,9 +8,9 @@ use std::io::{self, Write};
 use arrayref::array_ref;
 use serde::{Deserialize, Serialize};
 
-use byteorder::{ByteOrder, BigEndian, LittleEndian};
+use byteorder::{ByteOrder, BigEndian};
+use bitcoin::{blockdata::block::Header as BlockHeader, Txid};
 
-use elements::{BlockHeader, OutPoint, Script, Sequence, Transaction, TxIn, TxMerkleNode, TxOut, Txid, };
 #[derive(Debug)]
 pub struct DB {
     db: rocksdb::DB,
@@ -122,6 +122,15 @@ fn hex_string_to_bytes(hex: &str) -> Vec<u8> {
     bytes
 }
 
+fn reverse_vec<T>(v: &mut Vec<T>) {
+    let mut left = 0;
+    let mut right = v.len() - 1;
+    while left < right {
+        v.swap(left, right);
+        left += 1;
+        right -= 1;
+    }
+}
 fn main() {
     // CLI 인자 가져오기
     let db_path = "/home/ubuntu/data2/electrs/db/mainnet/newindex/txstore";
@@ -147,22 +156,16 @@ fn main() {
             break;
         }
 
-        let hash: Vec<u8> = hex_string_to_bytes(&key);
+        let mut hash: Vec<u8> = hex_string_to_bytes(&key);
+        reverse_vec(&mut hash);
         let big_endian_value = BigEndian::read_u32(&hash);
-
-        println!("Big Endian value: {}", big_endian_value);
-
-        // Big Endian 값을 Little Endian으로 변환
-        let little_hash = u32::from_le(big_endian_value);
-
-        // let little_hash = serialize_little(&hash[..]).unwrap();
         println!("hash: {:?}",hash);
 
         // 값 저장
 
-        match target {
-            String::from("1") => {
-                let hash_key = &BlockRow::block_key(full_hash(&little_hash[..]));
+        match target.to_string().as_str() {
+            "1" => {
+                let hash_key = &BlockRow::block_key(full_hash(&hash[..]));
                 println!("hash_key: {:?}",hash_key);
                 let value: Option<BlockHeader>  = db.get(hash_key)
                     .map(|val| deserialize_little(&val).expect("failed to parse BlockHeader"));
@@ -170,16 +173,16 @@ fn main() {
 
                 // 1에 해당하는 작업 수행
             }
-            String::from("2") => {
-                let hash_key = &BlockRow::txids_key(full_hash(&little_hash[..]));
+            "2" => {
+                let hash_key = &BlockRow::txids_key(full_hash(&hash[..]));
                 println!("hash_key: {:?}",hash_key);
                 let value: Option<Vec<Txid>>  = db.get(hash_key)
                     .map(|val| deserialize_little(&val).expect("failed to parse Txid"));
                 println!("Value '{:?}'", value);
                 // 2에 해당하는 작업 수행
             }
-            String::from("3") => {
-                let hash_key = &BlockRow::meta_key(full_hash(&little_hash[..]));
+            "3" => {
+                let hash_key = &BlockRow::meta_key(full_hash(&hash[..]));
                 println!("hash_key: {:?}",hash_key);
                 let value: Option<BlockMeta>  = db.get(hash_key)
                     .map(|val| deserialize_little(&val).expect("failed to parse BlockMeta"));
