@@ -9,7 +9,7 @@ use arrayref::array_ref;
 use serde::{Deserialize, Serialize};
 
 use byteorder::{ByteOrder, BigEndian};
-use bitcoin::{blockdata::block::Header as BlockHeader, Txid};
+use bitcoin::{blockdata::block::Header as BlockHeader, Txid, consensus::deserialize};
 
 #[derive(Debug)]
 pub struct DB {
@@ -168,7 +168,7 @@ fn main() {
                 let hash_key = &BlockRow::block_key(full_hash(&hash[..]));
                 println!("hash_key: {:?}",hash_key);
                 let value: Option<BlockHeader>  = db.get(hash_key)
-                    .map(|val| deserialize_little(&val).expect("failed to parse BlockHeader"));
+                    .map(|val| deserialize(&val).expect("failed to parse BlockHeader"));
                 println!("Value '{:?}'", value);
 
                 // 1에 해당하는 작업 수행
