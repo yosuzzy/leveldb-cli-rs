@@ -132,8 +132,9 @@ fn main() {
         }
 
         let hash: Vec<u8> = hex_string_to_bytes(&key);
+        let little_hash = serialize_little(&hash[..]).unwrap();
         println!("hash: {:?}",hash);
-        let hash_key = &BlockRow::meta_key(full_hash(&hash[..]));
+        let hash_key = &BlockRow::meta_key(full_hash(&little_hash[..]));
         println!("hash_key: {:?}",hash_key);
         // 값 저장
         let value: Option<BlockMeta>  = db.get(hash_key)
