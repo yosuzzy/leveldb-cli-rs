@@ -8,6 +8,9 @@ use std::io::{self, Write};
 use arrayref::array_ref;
 use serde::{Deserialize, Serialize};
 
+use byteorder::{ByteOrder, BigEndian, LittleEndian};
+
+use elements::{BlockHeader, OutPoint, Script, Sequence, Transaction, TxIn, TxMerkleNode, TxOut, Txid, };
 #[derive(Debug)]
 pub struct DB {
     db: rocksdb::DB,
@@ -85,9 +88,16 @@ struct BlockRow {
 }
 
 impl BlockRow {
+    fn block_key(hash: FullHash) -> Bytes {
+        [b"B", &hash[..]].concat()
+    }
     fn meta_key(hash: FullHash) -> Bytes {
         [b"M", &hash[..]].concat()
     }
+    fn txids_key(hash: FullHash) -> Bytes {
+        [b"X", &hash[..]].concat()
+    }
+
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -119,6 +129,12 @@ fn main() {
     // RocksDB 열기
     let db = DB::open(path);
 
+    print!("Enter target (type 'q' to quit): ");
+    io::stdout().flush().unwrap();
+    let mut target = String::new();
+    io::stdin().read_line(&mut target).unwrap();
+    let key = target.trim();
+
     loop {
         // 사용자로부터 키 입력 받기
         print!("Enter key (type 'q' to quit): ");
@@ -132,14 +148,50 @@ fn main() {
         }
 
         let hash: Vec<u8> = hex_string_to_bytes(&key);
-        let little_hash = serialize_little(&hash[..]).unwrap();
+        let big_endian_value = BigEndian::read_u32(&hash);
+
+        println!("Big Endian value: {}", big_endian_value);
+
+        // Big Endian 값을 Little Endian으로 변환
+        let little_hash = u32::from_le(big_endian_value);
+
+        // let little_hash = serialize_little(&hash[..]).unwrap();
         println!("hash: {:?}",hash);
-        let hash_key = &BlockRow::meta_key(full_hash(&little_hash[..]));
-        println!("hash_key: {:?}",hash_key);
+
         // 값 저장
-        let value: Option<BlockMeta>  = db.get(hash_key)
-            .map(|val| deserialize_little(&val).expect("failed to parse BlockMeta"));
-        println!("Value '{:?}'", value);
+
+        match target {
+            String::from("1") => {
+                let hash_key = &BlockRow::block_key(full_hash(&little_hash[..]));
+                println!("hash_key: {:?}",hash_key);
+                let value: Option<BlockHeader>  = db.get(hash_key)
+                    .map(|val| deserialize_little(&val).expect("failed to parse BlockHeader"));
+                println!("Value '{:?}'", value);
+
+                // 1에 해당하는 작업 수행
+            }
+            String::from("2") => {
+                let hash_key = &BlockRow::txids_key(full_hash(&little_hash[..]));
+                println!("hash_key: {:?}",hash_key);
+                let value: Option<Vec<Txid>>  = db.get(hash_key)
+                    .map(|val| deserialize_little(&val).expect("failed to parse Txid"));
+                println!("Value '{:?}'", value);
+                // 2에 해당하는 작업 수행
+            }
+            String::from("3") => {
+                let hash_key = &BlockRow::meta_key(full_hash(&little_hash[..]));
+                println!("hash_key: {:?}",hash_key);
+                let value: Option<BlockMeta>  = db.get(hash_key)
+                    .map(|val| deserialize_little(&val).expect("failed to parse BlockMeta"));
+                println!("Value '{:?}'", value);
+                // 3에 해당하는 작업 수행
+            }
+            _ => {
+                println!("Target is not 1, 2, or 3");
+                // 1, 2, 3에 해당하지 않는 경우에 수행할 작업
+            }
+        }
+
     }
 
     // RocksDB 닫기
@@ -164,3 +216,4 @@ fn big_endian() -> impl Options {
 fn little_endian() -> impl Options {
     options().with_little_endian()
 }
+
