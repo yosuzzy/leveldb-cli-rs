@@ -123,8 +123,11 @@ fn main() {
         }
 
         let hash: &[u8] = key.as_bytes();
+        println!("hash: {:?}",hash);
+        let hash_key = &BlockRow::meta_key(full_hash(&hash[..]));
+        println!("hash_key: {:?}",hash);
         // 값 저장
-        let value: Option<BlockMeta>  = db.get(&BlockRow::meta_key(full_hash(&hash[..])))
+        let value: Option<BlockMeta>  = db.get(hash_key)
             .map(|val| deserialize_little(&val).expect("failed to parse BlockMeta"));
         println!("Value '{:?}'", value);
     }
