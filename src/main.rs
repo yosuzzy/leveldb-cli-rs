@@ -2,8 +2,11 @@ use rocksdb;
 
 use std::path::Path;
 
-use std::{env};
+use bincode::Options;
+
 use std::io::{self, Write};
+use arrayref::array_ref;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub struct DB {
@@ -11,6 +14,35 @@ pub struct DB {
 }
 
 pub type Bytes = Vec<u8>;
+
+pub fn serialize_big<T>(value: &T) -> Result<Vec<u8>, bincode::Error>
+    where
+        T: ?Sized + serde::Serialize,
+{
+    big_endian().serialize(value)
+}
+
+pub fn deserialize_big<'a, T>(bytes: &'a [u8]) -> Result<T, bincode::Error>
+    where
+        T: serde::Deserialize<'a>,
+{
+    big_endian().deserialize(bytes)
+}
+
+pub fn serialize_little<T>(value: &T) -> Result<Vec<u8>, bincode::Error>
+    where
+        T: ?Sized + serde::Serialize,
+{
+    little_endian().serialize(value)
+}
+
+pub fn deserialize_little<'a, T>(bytes: &'a [u8]) -> Result<T, bincode::Error>
+    where
+        T: serde::Deserialize<'a>,
+{
+    little_endian().deserialize(bytes)
+}
+
 
 impl DB {
     pub fn open(path: &Path) -> DB {
@@ -39,15 +71,41 @@ impl DB {
         self.db.get(key).unwrap().map(|v| v.to_vec())
     }
 }
+pub type FullHash = [u8; 32]; // serialized SHA256 result
+
+#[derive(Serialize, Deserialize)]
+struct BlockKey {
+    code: u8,
+    hash: FullHash,
+}
+
+struct BlockRow {
+    key: BlockKey,
+    value: Bytes, // serialized output
+}
+
+impl BlockRow {
+    fn meta_key(hash: FullHash) -> Bytes {
+        [b"M", &hash[..]].concat()
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BlockMeta {
+    #[serde(alias = "nTx")]
+    pub tx_count: u32,
+    pub size: u32,
+    pub weight: u32,
+}
+const HASH_LEN: usize = 32;
+
+pub fn full_hash(hash: &[u8]) -> FullHash {
+    *array_ref![hash, 0, HASH_LEN]
+}
 
 fn main() {
     // CLI 인자 가져오기
-    let args: Vec<String> = env::args().collect();
-    // if args.len() != 2 {
-    //     println!("Usage: {} <path_to_db>", args[0]);
-    //     return;
-    // }
-    let db_path = "/home/ubuntu/data2/electrs/db/mainnet/newindex/";
+    let db_path = "/home/ubuntu/data2/electrs/db/mainnet/newindex/txstore";
     let path = Path::new(db_path);
     // RocksDB 열기
     let db = DB::open(path);
@@ -64,11 +122,32 @@ fn main() {
             break;
         }
 
+        let hash: &[u8] = key.as_bytes();
         // 값 저장
-        let value = db.get(key.as_bytes()).unwrap();
+        let value: Option<BlockMeta>  = db.get(&BlockRow::meta_key(full_hash(&hash[..])))
+            .map(|val| deserialize_little(&val).expect("failed to parse BlockMeta"));
         println!("Value '{:?}'", value);
     }
 
     // RocksDB 닫기
     drop(db);
+}
+
+#[inline]
+fn options() -> impl Options {
+    bincode::options()
+        .with_fixint_encoding()
+        .with_no_limit()
+        .allow_trailing_bytes()
+}
+
+#[inline]
+fn big_endian() -> impl Options {
+    options().with_big_endian()
+}
+
+/// Adding the endian flag for little endian
+#[inline]
+fn little_endian() -> impl Options {
+    options().with_little_endian()
 }
