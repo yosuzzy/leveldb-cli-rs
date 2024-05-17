@@ -103,6 +103,15 @@ pub fn full_hash(hash: &[u8]) -> FullHash {
     *array_ref![hash, 0, HASH_LEN]
 }
 
+fn hex_string_to_bytes(hex: &str) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    for i in (0..hex.len()).step_by(2) {
+        let byte = u8::from_str_radix(&hex[i..i+2], 16).expect("Invalid hex string");
+        bytes.push(byte);
+    }
+    bytes
+}
+
 fn main() {
     // CLI 인자 가져오기
     let db_path = "/home/ubuntu/data2/electrs/db/mainnet/newindex/txstore";
@@ -122,7 +131,7 @@ fn main() {
             break;
         }
 
-        let hash: &[u8] = key.as_bytes();
+        let hash: Vec<u8> = hex_string_to_bytes(&key);
         println!("hash: {:?}",hash);
         let hash_key = &BlockRow::meta_key(full_hash(&hash[..]));
         println!("hash_key: {:?}",hash_key);
