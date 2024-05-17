@@ -142,7 +142,7 @@ fn main() {
     io::stdout().flush().unwrap();
     let mut target = String::new();
     io::stdin().read_line(&mut target).unwrap();
-    let key = target.trim();
+    let targetKey = target.trim();
 
     loop {
         // 사용자로부터 키 입력 받기
@@ -163,7 +163,7 @@ fn main() {
 
         // 값 저장
 
-        match target.to_string().as_str() {
+        match targetKey {
             "1" => {
                 let hash_key = &BlockRow::block_key(full_hash(&hash[..]));
                 println!("hash_key: {:?}",hash_key);
